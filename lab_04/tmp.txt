@@ -1,0 +1,178 @@
+SSEG SEGMENT Stack
+	dw 256 dup(?)
+SSEG ENDS
+
+DSEG SEGMENT para public 'DATA'
+	matr db 81 dup(0)
+	x db 1 dup(0)
+	rows db 0
+	columns db 0
+	maxsumi db 0
+	maxsum db 0
+DSEG ENDS
+
+CSEG SEGMENT PARA PUBLIC 'CODE'
+	assume CS:CSEG, DS:DSEG, SS:SSEG
+readmatr:
+	xor cx, cx
+	xor di, di
+	mov cl, [rows]
+
+	lines:
+		mov dh, cl ;сохраняем значение cx внешнего цикла
+		mov cl, [columns] ;записываем в cx количество символов строки
+		
+		readline:		
+			mov ah, 1
+			int 21h
+			mov [matr + di], al
+			inc di
+			
+			mov ah, 2
+			mov dl, 20h
+			int 21h
+		loop readline
+
+		mov dl, 0ah
+		mov ah, 2
+		int 21h
+		
+		mov cl, dh ;возвращаем в cx значение цикла
+	loop lines
+	ret
+	
+outputmatr:
+	xor cx, cx
+	xor di, di
+	mov cl, [rows]
+
+	olines:
+		mov dh, cl ;сохраняем значение cx внешнего цикла
+		mov cl, [columns]
+		mov ah, 2
+		
+		outputline:
+			mov dl, [matr + di]
+			int 21h
+			mov dl, 20h
+			int 21h
+			inc di
+		loop outputline
+
+		mov dl, 0ah
+		int 21h
+		
+		mov cl, dh ;возвращаем в cx значение цикла
+	loop olines
+
+	ret
+
+find_max_column_sum:
+	xor cx, cx
+	xor di, di
+	xor si, si
+	mov cl, [rows]
+
+	rlines:
+		mov dh, cl ;сохраняем значение cx внешнего цикла
+		mov cl, [columns]
+		mov di, si
+		xor ah, ah ;сумма столбца
+		findsum:
+			mov bl, matr[di]
+			sub bl, 30h
+			add ah, bl
+			
+			xor bx, bx
+			mov bl, [rows]
+			add di, bx
+		loop findsum
+		
+		cmp ah, [maxsum]
+		ja set_max_sum
+		jb endofif
+		set_max_sum:
+			xchg ah, [maxsum]
+			xor ax, ax
+			add ax, si
+			xchg [maxsumi], al
+		endofif:
+		inc si
+		mov cl, dh ;возвращаем в cx значение внешнего цикла
+	loop rlines
+	ret
+
+delete_column:
+	xor cx, cx
+	add cl, [maxsumi]
+	xor di, di
+	mov di, cx
+	inc di
+	xor si, si
+	mov si, di
+	dec si
+	
+	xor cx, cx
+	mov cl, [rows]
+	
+	dlines:
+		mov dh, cl
+		mov cl, [columns]
+		shift_elements:
+			mov ah, [matr + di]
+			xchg [matr + si], ah
+			inc di
+			inc si
+		loop shift_elements
+		
+		inc di
+		inc di
+		inc si
+		mov cl, dh
+	loop dlines
+		
+	mov ah, columns
+	dec ah
+	xchg ah, columns
+	ret
+		
+
+main:
+	mov ax, DSEG
+	mov ds, ax
+	mov ax, SSEG
+	mov ss, ax
+
+;read_nrows	
+	mov ah, 1
+	int 21h
+	sub al, 30h
+	xchg al, rows
+	
+	mov ah, 2
+	mov dl, 20h
+	int 21h
+
+;read_ncolumns
+	mov ah, 1
+	int 21h
+	sub al, 30h
+	xchg al, columns
+	
+	mov ah, 2
+	mov dl, 0ah
+	int 21h
+	
+	call readmatr
+	call find_max_column_sum
+	call delete_column
+	call outputmatr
+	
+	mov ah, 2
+	mov dl, 0ah
+	int 21h
+		
+	mov ah, 4ch
+	int 21h
+CSEG ENDS
+END main
